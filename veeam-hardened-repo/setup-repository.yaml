@@ -1,0 +1,55 @@
+---
+- hosts: all
+  gather_facts: yes
+  vars_files:
+    - vars/vars.yaml
+  tasks:
+    # Install xfsprogs package, this is needed to create the xfs filesystem
+    - name: Install xfsprogs dependency
+      apt:
+        name: xfsprogs
+        state: present
+      become: yes
+
+    # Create Veeam user with a random password, credentials will be stored in credentials/veeam file
+    - name: Create Veeam service account
+      user: 
+        name: "{{ veeam_user_name }}"
+        comment: Veeam service account
+        shell: /bin/bash
+        password: "{{ lookup('password', 'credentials/veeamuserpw length=24 chars=ascii_letters,digits') | password_hash('sha512') }}"
+      become: yes
+
+    # Create a /mnt/veeam directory used as the mount point for the xfs filesystem
+    - name: Create directory /mnt/veeam
+      file:
+        path: /mnt/veeam
+        state: directory
+      become: yes
+
+    # Create the XFS filesystem, it uses /dev/sdb and enables fastclone and crc
+    - name: create and format the xfs filesystem
+      filesystem:
+        fstype: xfs
+        dev: "{{ repository_disk }}"
+        opts: "-b size=4096 -m reflink=1,crc=1"
+      become: yes
+
+    # Mount the xfs filesytem and create fstab entry
+    - name: mount the xfs filesystem
+      mount:
+        path: /mnt/veeam
+        src: "{{ repository_disk }}"
+        fstype: xfs
+        state: present
+      become: yes
+
+    # Set correct permissions on the /mnt/veeam directory, only the veeam user will have permissions
+    - name: Set correct permissions on /mnt/veeam
+      file:
+        path: /mnt/veeam
+        state: directory
+        owner: veeam
+        group: veeam
+        mode: '0700'
+      become: yes

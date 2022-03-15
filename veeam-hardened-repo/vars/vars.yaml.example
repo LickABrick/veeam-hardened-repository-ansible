@@ -1,0 +1,6 @@
+# username of the veeam service account on the linux host
+veeam_user_name: veeam
+# disk to use for the XFS filesystem
+repository_disk: /dev/sdb
+# allow or dissalow SSH access, for higher security you should disable SSH (yes = allowed, no = disallowed)
+firewalld_allow_ssh: 'yes'

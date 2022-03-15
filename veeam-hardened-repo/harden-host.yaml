@@ -1,0 +1,84 @@
+---
+- hosts: all
+  gather_facts: yes
+  vars_files:
+    - vars/vars.yaml
+  tasks:
+
+    - name: Install firewalld dependency
+      apt:
+        name: firewalld
+        state: present
+      become: yes
+
+    - name: Install libpam-google-authenticator dependency
+      apt:
+        name: libpam-google-authenticator
+        state: present
+      become: yes
+
+    - name: Add rule to allow SSH traffic when set in config
+      firewalld:
+        service: ssh
+        permanent: yes
+        state: enabled
+      when: (firewalld_allow_ssh == 'yes')
+      become: yes
+
+    - name: Add rule to deny SSH traffic when set in config
+      firewalld:
+        service: SSH
+        permanent: yes
+        state: disabled
+      when: (firewalld_allow_ssh == 'no')
+      become: yes
+
+    - name: Add rule to allow Veeam Data Mover Traffic
+      firewalld:
+        port: 6162/tcp
+        permanent: yes
+        state: enabled
+      become: yes     
+
+    - name: Add rule to allow Veeam Data Mover Traffic
+      firewalld:
+        port: 2500-3300/tcp
+        permanent: yes
+        state: enabled
+      become: yes
+
+    - name: Check if OTP is already enabled
+      stat:
+        path: ~/.google_authenticator
+      register: stat_result
+
+    - name: Generate OTP code for user
+      command: google-authenticator --no-confirm --force --disallow-reuse --time-based --window-size 3 --rate-limit=3 --rate-time=30
+      register: command_result
+      when: not stat_result.stat.exists
+
+    - name: Copy generated OTP to local computer
+      local_action: copy content={{ command_result.stdout_lines }} dest=credentials/OTP_info
+      when: not stat_result.stat.exists
+
+    - name: Enable 2FA for SSH connections (step 1)
+      lineinfile:
+        path: /etc/pam.d/sshd
+        state: present
+        line: 'auth required pam_google_authenticator.so'
+      register: otpenabled
+      become: yes
+
+    - name: Enable 2FA for SSH connections (step 2)
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^ChallengeResponseAuthentication'
+        line: ChallengeResponseAuthentication yes
+      become: yes
+      
+    - name: Restart SSH service to apply changes
+      service:
+        name: sshd
+        state: restarted
+      when: otpenabled.changed
+      become: yes
