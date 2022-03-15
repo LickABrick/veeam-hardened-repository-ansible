@@ -9,7 +9,6 @@ This step will make sure the hosts packages will be upgraded
 run command: `sudo ansible-playbook update-host.yaml -k --ask-become-pass --become-method=su`
 ### Step 3:
 This step will create a veeam service account[^1] and setup the repository XFS filesystem
-*Credentials will be saved into *
 
 run command: `sudo ansible-playbook setup-repository.yaml -k --ask-become-pass --become-method=su`
 ### Step 4:
